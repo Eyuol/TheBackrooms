@@ -3,6 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="screen-orientation" content="landscape">
+  <meta name="x5-orientation" content="landscape">
+  <meta name="x5-fullscreen" content="true">
+  <meta name="full-screen" content="yes">
   <title>逃离后室</title>
   <style>
     :root {
@@ -1261,6 +1265,16 @@
       line-height: 1.55;
     }
 
+    .rotate-actions {
+      display: flex;
+      justify-content: center;
+      margin-top: 18px;
+    }
+
+    .rotate-actions .menu-btn {
+      min-width: 150px;
+    }
+
     @media (max-width: 760px) {
       .app {
         min-height: 100dvh;
@@ -1536,10 +1550,13 @@
 
     <div class="hint-card" id="hintCard"><strong id="hintTitle"></strong><span id="hintText"></span></div>
 
-    <div class="rotate-lock" aria-hidden="true">
+    <div class="rotate-lock" id="rotateLock">
       <div class="rotate-card">
         <strong>请横屏游玩</strong>
-        <span>这间后室按横向地图设计。把手机横过来，平台、梯子和按键会自动对齐到最佳视野。</span>
+        <span id="rotateHint">这间后室按横向地图设计。点下按钮会尝试自动横屏；如果浏览器不支持，把手机横过来即可。</span>
+        <div class="rotate-actions">
+          <button class="menu-btn primary" id="landscapeBtn" type="button">尝试横屏</button>
+        </div>
       </div>
     </div>
   </main>
@@ -1697,6 +1714,8 @@
     const hintCardEl = document.getElementById("hintCard");
     const hintTitleEl = document.getElementById("hintTitle");
     const hintTextEl = document.getElementById("hintText");
+    const landscapeBtnEl = document.getElementById("landscapeBtn");
+    const rotateHintEl = document.getElementById("rotateHint");
 
     const STORAGE_KEYS = {
       playerId: "escapeBackrooms.playerId"
@@ -1711,6 +1730,29 @@
     let state = null;
     let sheetMode = "";
     let menuView = "cover";
+
+    async function requestLandscapeMode() {
+      const root = document.documentElement;
+      try {
+        const requestFullscreen = root.requestFullscreen || root.webkitRequestFullscreen;
+        if (requestFullscreen && !document.fullscreenElement && !document.webkitFullscreenElement) {
+          await requestFullscreen.call(root);
+        }
+      } catch {
+        // Some mobile browsers only allow fullscreen from specific gestures.
+      }
+
+      try {
+        if (screen.orientation?.lock) {
+          await screen.orientation.lock("landscape");
+          if (rotateHintEl) rotateHintEl.textContent = "横屏已开启。";
+        } else if (rotateHintEl) {
+          rotateHintEl.textContent = "这个浏览器不支持自动横屏，把手机横过来即可。";
+        }
+      } catch {
+        if (rotateHintEl) rotateHintEl.textContent = "这个浏览器不允许自动横屏，把手机横过来即可。";
+      }
+    }
 
     function playerId() {
       try {
@@ -2229,7 +2271,10 @@
         btn.setAttribute("aria-label", `第 ${index + 1} 关`);
         const tag = index === 0 ? '<span class="level-tag">新手教程</span>' : "";
         btn.innerHTML = `<strong>关卡${index + 1}</strong>${tag}`;
-        btn.addEventListener("click", () => startLevel(index, index === 0));
+        btn.addEventListener("click", () => {
+          requestLandscapeMode();
+          startLevel(index, index === 0);
+        });
         levelGridEl.appendChild(btn);
       });
     }
@@ -2402,7 +2447,11 @@
     document.getElementById("playerBadge").addEventListener("click", openRenameModal);
     document.getElementById("playerBadge2").addEventListener("click", openRenameModal);
 
-    document.getElementById("startBtn").addEventListener("click", enterLevels);
+    landscapeBtnEl.addEventListener("click", requestLandscapeMode);
+    document.getElementById("startBtn").addEventListener("click", () => {
+      requestLandscapeMode();
+      enterLevels();
+    });
     document.getElementById("backCoverBtn").addEventListener("click", () => showMenuView("cover"));
     document.getElementById("idCancel").addEventListener("click", () => { idModalEl.hidden = true; });
     document.getElementById("idConfirm").addEventListener("click", confirmId);
