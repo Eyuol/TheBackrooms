@@ -1703,10 +1703,12 @@
     const hintTextEl = document.getElementById("hintText");
 
     const STORAGE_KEYS = {
-      playerId: "escapeBackrooms.playerId"
+      playerId: "escapeBackrooms.playerId",
+      completedLevels: "escapeBackrooms.completedLevels"
     };
 
-    let unlocked = Number.MAX_SAFE_INTEGER;
+    let completedLevels = readCompletedLevels();
+    let unlocked = unlockedFromCompletedLevels();
 
     let currentIndex = 0;
     let currentLevel = LEVELS[0];
@@ -1735,6 +1737,36 @@
       } catch {
         return `Clark-${String(Math.floor(Math.random() * 900) + 100)}`;
       }
+    }
+
+    function readCompletedLevels() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(STORAGE_KEYS.completedLevels) || "[]");
+        if (!Array.isArray(saved)) return new Set();
+        return new Set(saved.filter((index) => Number.isInteger(index) && index >= 0 && index < LEVELS.length));
+      } catch {
+        return new Set();
+      }
+    }
+
+    function rememberCompletedLevel(index) {
+      completedLevels.add(index);
+      unlocked = unlockedFromCompletedLevels();
+      try {
+        localStorage.setItem(STORAGE_KEYS.completedLevels, JSON.stringify([...completedLevels]));
+      } catch {
+        // Progress can still be tracked for this page session.
+      }
+    }
+
+    function unlockedFromCompletedLevels() {
+      let next = 0;
+      while (next < LEVELS.length - 1 && completedLevels.has(next)) next += 1;
+      return next;
+    }
+
+    function allLevelsCompleted() {
+      return LEVELS.every((_, index) => completedLevels.has(index));
     }
 
     function formatTime(ms) {
@@ -1784,6 +1816,10 @@
     }
 
     function startLevel(index, tutorial = false) {
+      if (index > unlocked) {
+        openMenu();
+        return;
+      }
       isTutorial = tutorial;
       currentIndex = index;
       currentLevel = tutorial ? TUTORIAL : LEVELS[index];
@@ -2107,11 +2143,14 @@
         pulseMessage("Exit 还没有打开");
       } else if (sameCell(state.player, posOf("G"))) {
         state.won = true;
+        rememberCompletedLevel(currentIndex);
         if (isTutorial) {
           showResult("教程完成", "现在去选一层后室。", "tutorialDone");
         } else {
-          const finalLevel = currentIndex === LEVELS.length - 1;
-          showResult(finalLevel ? "恭喜你！成功逃出后室！" : "逃离成功", finalLevel ? "所有后室层级都已完成。" : "继续前往下一层。", "win");
+          const lastLevel = currentIndex === LEVELS.length - 1;
+          const finalComplete = lastLevel && allLevelsCompleted();
+          const winText = finalComplete ? "所有后室层级都已完成。" : lastLevel ? "还有关卡没有完成，回到选关补齐所有层级。" : "继续前往下一层。";
+          showResult(finalComplete ? "恭喜你！5关全部通过，成功逃出后室！" : "逃离成功", winText, "win");
         }
       }
 
@@ -2238,11 +2277,14 @@
       LEVELS.forEach((level, index) => {
         const btn = document.createElement("button");
         btn.className = "level-card";
-        btn.disabled = false;
-        btn.setAttribute("aria-label", `第 ${index + 1} 关`);
-        const tag = index === 0 ? '<span class="level-tag">新手教程</span>' : "";
+        const locked = index > unlocked;
+        const completed = completedLevels.has(index);
+        btn.disabled = locked;
+        btn.setAttribute("aria-label", locked ? `第 ${index + 1} 关，未解锁` : `第 ${index + 1} 关`);
+        const tagText = locked ? "未解锁" : completed ? "已通关" : index === 0 ? "新手教程" : "";
+        const tag = tagText ? `<span class="level-tag">${tagText}</span>` : "";
         btn.innerHTML = `<strong>关卡${index + 1}</strong>${tag}`;
-        btn.addEventListener("click", () => startLevel(index, index === 0));
+        if (!locked) btn.addEventListener("click", () => startLevel(index, index === 0));
         levelGridEl.appendChild(btn);
       });
     }
