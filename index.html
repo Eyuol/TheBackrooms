@@ -2110,7 +2110,8 @@
         if (isTutorial) {
           showResult("教程完成", "现在去选一层后室。", "tutorialDone");
         } else {
-          showResult("逃离成功", currentIndex === LEVELS.length - 1 ? "最后一层出口打开了。" : "继续前往下一层。", "win");
+          const finalLevel = currentIndex === LEVELS.length - 1;
+          showResult(finalLevel ? "恭喜你！成功逃出后室！" : "逃离成功", finalLevel ? "所有后室层级都已完成。" : "继续前往下一层。", "win");
         }
       }
 
